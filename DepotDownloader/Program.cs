@@ -61,7 +61,7 @@ namespace DepotDownloader
 
             var username = GetParameter<string>(args, "-username") ?? GetParameter<string>(args, "-user");
             var password = GetParameter<string>(args, "-password") ?? GetParameter<string>(args, "-pass");
-            var downloadRaw = ContentDownloader.Config.DownloadRaw = HasParameter(args, "-raw");
+            //var downloadRaw = ContentDownloader.Config.DownloadRaw = HasParameter(args, "-raw");
             ContentDownloader.Config.RememberPassword = HasParameter(args, "-remember-password");
             ContentDownloader.Config.UseQrCode = HasParameter(args, "-qr");
 

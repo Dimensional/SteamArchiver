@@ -28,8 +28,8 @@ namespace DepotDownloader
         public const string DEFAULT_BRANCH = "public";
 
         public static DownloadConfig Config = new();
-        private static SteamClient steamClient;
-        public static RawClient RawClient = new(steamClient);
+        //private static SteamClient steamClient;
+        public static RawClient RawClient = new();
 
         private static Steam3Session steam3;
         private static CDNClientPool cdnPool;
@@ -321,7 +321,7 @@ namespace DepotDownloader
             cdnPool = new CDNClientPool(steam3, appId);
 
             // Load our configuration data containing the depots currently installed
-            var configPath = DEFAULT_DOWNLOAD_DIR;
+            //var configPath = DEFAULT_DOWNLOAD_DIR;
 
             await steam3?.RequestAppInfo(appId);
 
@@ -455,7 +455,11 @@ namespace DepotDownloader
             }
             else
             {
-                var depotFile = Path.Combine(DEPOT_KEY_DIR, "${depotId}.depotkey");
+                var depotFile = Path.Combine(DEPOT_KEY_DIR, $"{depotId}.depotkey");
+                if (!Directory.Exists(DEPOT_KEY_DIR))
+                {
+                    Directory.CreateDirectory(DEPOT_KEY_DIR);
+                }
                 if (!File.Exists(depotFile))
                 {
                     await File.WriteAllBytesAsync(depotFile, depotKey);
@@ -521,31 +525,31 @@ namespace DepotDownloader
 
             var downloadCounter = new GlobalDownloadCounter();
             var depotsToDownload = new List<DepotChunksData>(depots.Count);
-            var allFileNamesAllDepots = new HashSet<string>();
+            var allChunkNamesAllDepots = new HashSet<string>();
 
             // First, fetch all the manifests for each depot (including previous manifests) and perform the initial setup
             foreach (var depot in depots)
             {
-                var depotFileData = await ProcessDepotManifestAndFiles(cts, depot, downloadCounter);
+                var depotChunkData = await ProcessDepotManifestAndFiles(cts, depot, downloadCounter);
 
-                if (depotFileData != null)
+                if (depotChunkData != null)
                 {
-                    depotsToDownload.Add(depotFileData);
-                    allFileNamesAllDepots.UnionWith(depotFileData.allChunkNames);
+                    depotsToDownload.Add(depotChunkData);
+                    allChunkNamesAllDepots.UnionWith(depotChunkData.allChunkNames);
                 }
 
                 cts.Token.ThrowIfCancellationRequested();
             }
 
-            foreach (var depotFileData in depotsToDownload)
+            foreach (var depotChunkData in depotsToDownload)
             {
-                await DownloadSteam3AsyncDepotFiles(cts, downloadCounter, depotFileData, allFileNamesAllDepots);
+                await DownloadSteam3AsyncDepotFiles(cts, downloadCounter, depotChunkData, allChunkNamesAllDepots);
             }
 
             Ansi.Progress(Ansi.ProgressState.Hidden);
 
-            Console.WriteLine("Total downloaded: {0} bytes from {2} depots",
-                downloadCounter.totalBytesCompressed, depots.Count);
+            //Console.WriteLine("Total downloaded: {0} bytes from {2} depots",
+            //    downloadCounter.totalBytesCompressed, depots.Count);
         }
 
         private static async Task<DepotChunksData> ProcessDepotManifestAndFiles(CancellationTokenSource cts, DepotDownloadInfo depot, GlobalDownloadCounter downloadCounter)
@@ -562,7 +566,7 @@ namespace DepotDownloader
             ulong manifestRequestCode = 0;
             var manifestRequestCodeExpiration = DateTime.MinValue;
 
-            var manifestDir = Path.Combine(depotPath, depot.ManifestId.ToString());
+            var manifestDir = Path.Combine(depotPath, $"{depot.ManifestId.ToString()}.zip");
             do
             {
                 if (!File.Exists(manifestDir))
@@ -690,6 +694,8 @@ namespace DepotDownloader
                 cts.Cancel();
             }
 
+            protoManifest = new ProtoManifest(depotManifest, depot.ManifestId);
+
             // Throw the cancellation exception if requested so that this task is marked failed
             cts.Token.ThrowIfCancellationRequested();
 
@@ -708,11 +714,11 @@ namespace DepotDownloader
             var allChunkNames = new HashSet<string>(chunksAfterExclusions.Count);
             downloadCounter.totalChunks = (ulong)chunksAfterExclusions.Count;
 
-            var chunksAfterFiltering = new List<ProtoManifest.ChunkData>;
+            var chunksAfterFiltering = new List<ProtoManifest.ChunkData>();
             // Pre-process
             chunksAfterExclusions.ForEach(chunk =>
             {
-                if (!Path.Exists(Path.Combine(depot.InstallDir, chunk.ChunkID.ToString())))
+                if (!Path.Exists(Path.Combine(depot.InstallDir, BitConverter.ToString(chunk.ChunkID).Replace("-", "").ToLower())))
                 {
                     chunksAfterFiltering.Add(chunk);
                     downloadCounter.completeDownloadSize += chunk.UncompressedLength;
@@ -745,7 +751,7 @@ namespace DepotDownloader
 
             chunksAfterFiltering.ForEach(chunk =>
             {
-                remainingChunkNames.Add(chunk.ChunkID.ToString());
+                remainingChunkNames.Add(BitConverter.ToString(chunk.ChunkID).Replace("-", "").ToLower());
             });
 
             return new DepotChunksData
@@ -760,7 +766,7 @@ namespace DepotDownloader
         }
 
         private static async Task DownloadSteam3AsyncDepotFiles(CancellationTokenSource cts,
-            GlobalDownloadCounter downloadCounter, DepotChunksData depotChunksData, HashSet<string> allFileNamesAllDepots)
+            GlobalDownloadCounter downloadCounter, DepotChunksData depotChunksData, HashSet<string> allChunkNamesAllDepots)
         {
             var depot = depotChunksData.depotDownloadInfo;
             var depotCounter = depotChunksData.depotCounter;
@@ -768,7 +774,7 @@ namespace DepotDownloader
             Console.WriteLine("Downloading depot {0}", depot.DepotId);
 
             //var files = depotFilesData.filteredChunks.Where(f => !f.Flags.HasFlag(EDepotFileFlag.Directory)).ToArray();
-            var networkChunkQueue = new ConcurrentQueue<(ProtoManifest.FileData fileData, ProtoManifest.ChunkData chunk)>();
+            // var networkChunkQueue = ProtoManifest.ChunkData chunk;
 
             //await Util.InvokeAsync(
             //    files.Select(file => new Func<Task>(async () =>
@@ -776,10 +782,12 @@ namespace DepotDownloader
             //    maxDegreeOfParallelism: Config.MaxDownloads
             //);
 
+            //var networkChunkQueue = depotChunksData.filteredChunks;
+
             await Util.InvokeAsync(
-                networkChunkQueue.Select(q => new Func<Task>(async () =>
+                depotChunksData.filteredChunks.Select(q => new Func<Task>(async () =>
                     await Task.Run(() => DownloadSteam3AsyncDepotFileChunk(cts, downloadCounter, depotChunksData,
-                        q.fileData, q.chunk)))),
+                        q)))),
                 maxDegreeOfParallelism: Config.MaxDownloads
             );
 
@@ -951,7 +959,7 @@ namespace DepotDownloader
             CancellationTokenSource cts,
             GlobalDownloadCounter downloadCounter,
             DepotChunksData depotFilesData,
-            ProtoManifest.FileData file,
+            //ProtoManifest.FileData file,
             //FileStreamData fileStreamData,
             ProtoManifest.ChunkData chunk)
         {
@@ -965,15 +973,16 @@ namespace DepotDownloader
             var data = new DepotManifest.ChunkData
             {
                 ChunkID = chunk.ChunkID,
-                Checksum = BitConverter.ToUInt32(chunk.Checksum),
-                Offset = chunk.Offset,
+                //Checksum = BitConverter.ToUInt32(chunk.Checksum),
+                //Offset = chunk.Offset,
                 CompressedLength = chunk.CompressedLength,
                 UncompressedLength = chunk.UncompressedLength
             };
 
-            var chunkBuffer = ArrayPool<byte>.Shared.Rent((int)data.CompressedLength);
+            //byte[] chunkBuffer = null;
             var chunkSize = 0;
-            // var chunkDir = Path.Combine(depotPath, chunkID);
+            var chunkBuffer = ArrayPool<byte>.Shared.Rent((int)data.CompressedLength);
+            var chunkDir = Path.Combine(depot.InstallDir, chunkID);
 
             try
             {
@@ -1059,10 +1068,12 @@ namespace DepotDownloader
 
                 try
                 {
-                    await File.WriteAllBytesAsync(Path.Combine(depot.InstallDir, chunkID), chunkBuffer);
+                    await File.WriteAllBytesAsync(chunkDir, chunkBuffer);
                 }
                 finally
                 {
+                    chunkBuffer = null;
+                    ArrayPool<byte>.Shared.Return(chunkBuffer);
                 }
                 //try
                 //{
@@ -1084,7 +1095,6 @@ namespace DepotDownloader
             }
             finally
             {
-                ArrayPool<byte>.Shared.Return(chunkBuffer);
             }
 
             //var remainingChunks = Interlocked.Decrement(ref fileStreamData.chunksToDownload);
@@ -1111,8 +1121,8 @@ namespace DepotDownloader
 
             if (downloadCounter.totalChunks == 0)
             {
-                var fileFinalPath = Path.Combine(depot.InstallDir, file.FileName);
-                Console.WriteLine("{0,6:#00.00}% {1}", (sizeDownloaded / (float)depotDownloadCounter.completeDownloadSize) * 100.0f, fileFinalPath);
+                //var fileFinalPath = Path.Combine(depot.InstallDir, file.FileName);
+                //Console.WriteLine("{0,6:#00.00}% {1}", (sizeDownloaded / (float)depotDownloadCounter.completeDownloadSize) * 100.0f, fileFinalPath);
             }
         }
     }

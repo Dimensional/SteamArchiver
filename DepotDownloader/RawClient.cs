@@ -33,11 +33,11 @@ namespace DepotDownloader
         /// <param name="steamClient">
         /// The <see cref="SteamClient"/> this instance will be associated with.
         /// The SteamClient instance must be connected and logged onto Steam.</param>
-        public RawClient(SteamClient steamClient)
+        public RawClient()
         {
-            ArgumentNullException.ThrowIfNull(steamClient);
+            //ArgumentNullException.ThrowIfNull(steamClient);
 
-            this.httpClient = steamClient.Configuration.HttpClientFactory();
+            this.httpClient = new HttpClient();
         }
 
         /// <summary>
