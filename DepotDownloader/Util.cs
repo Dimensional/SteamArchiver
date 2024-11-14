@@ -124,6 +124,11 @@ namespace DepotDownloader
             return bytes;
         }
 
+        public static string EncodeHexString(byte[] input)
+        {
+            return Convert.ToHexString(input).ToLowerInvariant();
+        }
+
         /// <summary>
         /// Decrypts using AES/ECB/PKCS7
         /// </summary>

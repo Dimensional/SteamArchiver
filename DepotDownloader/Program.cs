@@ -61,6 +61,7 @@ namespace DepotDownloader
 
             var username = GetParameter<string>(args, "-username") ?? GetParameter<string>(args, "-user");
             var password = GetParameter<string>(args, "-password") ?? GetParameter<string>(args, "-pass");
+            var downloadRaw = ContentDownloader.Config.DownloadRaw = HasParameter(args, "-raw");
             ContentDownloader.Config.RememberPassword = HasParameter(args, "-remember-password");
             ContentDownloader.Config.UseQrCode = HasParameter(args, "-qr");
 
@@ -73,48 +74,6 @@ namespace DepotDownloader
             }
 
             ContentDownloader.Config.CellID = cellId;
-
-            var fileList = GetParameter<string>(args, "-filelist");
-
-            if (fileList != null)
-            {
-                const string RegexPrefix = "regex:";
-
-                try
-                {
-                    ContentDownloader.Config.UsingFileList = true;
-                    ContentDownloader.Config.FilesToDownload = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    ContentDownloader.Config.FilesToDownloadRegex = [];
-
-                    var files = await File.ReadAllLinesAsync(fileList);
-
-                    foreach (var fileEntry in files)
-                    {
-                        if (string.IsNullOrWhiteSpace(fileEntry))
-                        {
-                            continue;
-                        }
-
-                        if (fileEntry.StartsWith(RegexPrefix))
-                        {
-                            var rgx = new Regex(fileEntry[RegexPrefix.Length..], RegexOptions.Compiled | RegexOptions.IgnoreCase);
-                            ContentDownloader.Config.FilesToDownloadRegex.Add(rgx);
-                        }
-                        else
-                        {
-                            ContentDownloader.Config.FilesToDownload.Add(fileEntry.Replace('\\', '/'));
-                        }
-                    }
-
-                    Console.WriteLine("Using filelist: '{0}'.", fileList);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine("Warning: Unable to load filelist: {0}", ex);
-                }
-            }
-
-            ContentDownloader.Config.InstallDirectory = GetParameter<string>(args, "-dir");
 
             ContentDownloader.Config.VerifyAll = HasParameter(args, "-verify-all") || HasParameter(args, "-verify_all") || HasParameter(args, "-validate");
             ContentDownloader.Config.MaxServers = GetParameter(args, "-max-servers", 20);
@@ -210,37 +169,6 @@ namespace DepotDownloader
                 var branch = GetParameter<string>(args, "-branch") ?? GetParameter<string>(args, "-beta") ?? ContentDownloader.DEFAULT_BRANCH;
                 ContentDownloader.Config.BetaPassword = GetParameter<string>(args, "-betapassword");
 
-                ContentDownloader.Config.DownloadAllPlatforms = HasParameter(args, "-all-platforms");
-
-                var os = GetParameter<string>(args, "-os");
-
-                if (ContentDownloader.Config.DownloadAllPlatforms && !string.IsNullOrEmpty(os))
-                {
-                    Console.WriteLine("Error: Cannot specify -os when -all-platforms is specified.");
-                    return 1;
-                }
-
-                ContentDownloader.Config.DownloadAllArchs = HasParameter(args, "-all-archs");
-
-                var arch = GetParameter<string>(args, "-osarch");
-
-                if (ContentDownloader.Config.DownloadAllArchs && !string.IsNullOrEmpty(arch))
-                {
-                    Console.WriteLine("Error: Cannot specify -osarch when -all-archs is specified.");
-                    return 1;
-                }
-
-                ContentDownloader.Config.DownloadAllLanguages = HasParameter(args, "-all-languages");
-                var language = GetParameter<string>(args, "-language");
-
-                if (ContentDownloader.Config.DownloadAllLanguages && !string.IsNullOrEmpty(language))
-                {
-                    Console.WriteLine("Error: Cannot specify -language when -all-languages is specified.");
-                    return 1;
-                }
-
-                var lv = HasParameter(args, "-lowviolence");
-
                 var depotManifestIds = new List<(uint, ulong)>();
                 var isUGC = false;
 
@@ -266,7 +194,7 @@ namespace DepotDownloader
                 {
                     try
                     {
-                        await ContentDownloader.DownloadAppAsync(appId, depotManifestIds, branch, os, arch, language, lv, isUGC).ConfigureAwait(false);
+                        await ContentDownloader.DownloadAppAsync(appId, depotManifestIds, branch, isUGC).ConfigureAwait(false);
                     }
                     catch (Exception ex) when (
                         ex is ContentDownloaderException
@@ -409,13 +337,6 @@ namespace DepotDownloader
             Console.WriteLine("  -manifest <id>           - manifest id of content to download (requires -depot, default: current for branch).");
             Console.WriteLine($"  -beta <branchname>       - download from specified branch if available (default: {ContentDownloader.DEFAULT_BRANCH}).");
             Console.WriteLine("  -betapassword <pass>     - branch password if applicable.");
-            Console.WriteLine("  -all-platforms           - downloads all platform-specific depots when -app is used.");
-            Console.WriteLine("  -all-archs               - download all architecture-specific depots when -app is used.");
-            Console.WriteLine("  -os <os>                 - the operating system for which to download the game (windows, macos or linux, default: OS the program is currently running on)");
-            Console.WriteLine("  -osarch <arch>           - the architecture for which to download the game (32 or 64, default: the host's architecture)");
-            Console.WriteLine("  -all-languages           - download all language-specific depots when -app is used.");
-            Console.WriteLine("  -language <lang>         - the language for which to download the game (default: english)");
-            Console.WriteLine("  -lowviolence             - download low violence depots when -app is used.");
             Console.WriteLine();
             Console.WriteLine("  -ugc <#>                 - the UGC ID to download.");
             Console.WriteLine("  -pubfile <#>             - the PublishedFileId to download. (Will automatically resolve to UGC id)");
@@ -424,10 +345,6 @@ namespace DepotDownloader
             Console.WriteLine("  -password <pass>         - the password of the account to login to for restricted content.");
             Console.WriteLine("  -remember-password       - if set, remember the password for subsequent logins of this user.");
             Console.WriteLine("                             use -username <username> -remember-password as login credentials.");
-            Console.WriteLine();
-            Console.WriteLine("  -dir <installdir>        - the directory in which to place downloaded files.");
-            Console.WriteLine("  -filelist <file.txt>     - the name of a local file that contains a list of files to download (from the manifest).");
-            Console.WriteLine("                             prefix file path with `regex:` if you want to match with regex. each file path should be on their own line.");
             Console.WriteLine();
             Console.WriteLine("  -validate                - include checksum verification of files already downloaded");
             Console.WriteLine("  -manifest-only           - downloads a human readable manifest for any depots that would be downloaded.");
