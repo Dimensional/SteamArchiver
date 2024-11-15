@@ -28,7 +28,6 @@ namespace DepotDownloader
         public const string DEFAULT_BRANCH = "public";
 
         public static DownloadConfig Config = new();
-        //private static SteamClient steamClient;
         public static RawClient RawClient = new();
 
         private static Steam3Session steam3;

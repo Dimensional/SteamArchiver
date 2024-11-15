@@ -61,7 +61,6 @@ namespace DepotDownloader
 
             var username = GetParameter<string>(args, "-username") ?? GetParameter<string>(args, "-user");
             var password = GetParameter<string>(args, "-password") ?? GetParameter<string>(args, "-pass");
-            //var downloadRaw = ContentDownloader.Config.DownloadRaw = HasParameter(args, "-raw");
             ContentDownloader.Config.RememberPassword = HasParameter(args, "-remember-password");
             ContentDownloader.Config.UseQrCode = HasParameter(args, "-qr");
 
@@ -77,151 +76,206 @@ namespace DepotDownloader
 
             ContentDownloader.Config.VerifyAll = HasParameter(args, "-verify-all") || HasParameter(args, "-verify_all") || HasParameter(args, "-validate");
             ContentDownloader.Config.MaxServers = GetParameter(args, "-max-servers", 20);
-            ContentDownloader.Config.MaxDownloads = GetParameter(args, "-max-downloads", 8);
+            ContentDownloader.Config.MaxDownloads = GetParameter(args, "-max-downloads", 1);
             ContentDownloader.Config.MaxServers = Math.Max(ContentDownloader.Config.MaxServers, ContentDownloader.Config.MaxDownloads);
             ContentDownloader.Config.LoginID = HasParameter(args, "-loginid") ? GetParameter<uint>(args, "-loginid") : null;
 
             #endregion
 
-            var appId = GetParameter(args, "-app", ContentDownloader.INVALID_APP_ID);
-            if (appId == ContentDownloader.INVALID_APP_ID)
+            //var appId = GetParameter(args, "-app", ContentDownloader.INVALID_APP_ID);
+            var appIndices = Enumerable.Range(0, args.Length)
+                                        .Where(i => args[i].Equals("-app", StringComparison.OrdinalIgnoreCase))
+                                        .ToList();
+
+            if (appIndices.Count == 0)
             {
-                Console.WriteLine("Error: -app not specified!");
+                Console.WriteLine("Error: -app requires at least 1 value!");
                 return 1;
             }
 
-            var pubFile = GetParameter(args, "-pubfile", ContentDownloader.INVALID_MANIFEST_ID);
-            var ugcId = GetParameter(args, "-ugc", ContentDownloader.INVALID_MANIFEST_ID);
-            if (pubFile != ContentDownloader.INVALID_MANIFEST_ID)
-            {
-                #region Pubfile Downloading
+            var appTuples = new List<(uint appId, uint? depotId, ulong? manifestId, string branch)>();
 
-                if (InitializeSteam(username, password))
+            foreach (var index in appIndices)
+            {
+                var appParamsList = args.Skip(index + 1).Take(4).ToList();
+                var myTuple = (
+                    appId: uint.TryParse(appParamsList.ElementAtOrDefault(0), out var appId) ? appId : ContentDownloader.INVALID_APP_ID,
+                    depotId: uint.TryParse(appParamsList.ElementAtOrDefault(1), out var depotId) ? depotId : (uint?)null,
+                    manifestId: ulong.TryParse(appParamsList.ElementAtOrDefault(2), out var manifestId) ? manifestId : (ulong?)null,
+                    branch: appParamsList.ElementAtOrDefault(3) ?? ContentDownloader.DEFAULT_BRANCH
+                );
+
+                if (myTuple.appId == ContentDownloader.INVALID_APP_ID)
                 {
-                    try
-                    {
-                        await ContentDownloader.DownloadPubfileAsync(appId, pubFile).ConfigureAwait(false);
-                    }
-                    catch (Exception ex) when (
-                        ex is ContentDownloaderException
-                        || ex is OperationCanceledException)
-                    {
-                        Console.WriteLine(ex.Message);
-                        return 1;
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine("Download failed to due to an unhandled exception: {0}", e.Message);
-                        throw;
-                    }
-                    finally
-                    {
-                        ContentDownloader.ShutdownSteam3();
-                    }
-                }
-                else
-                {
-                    Console.WriteLine("Error: InitializeSteam failed");
+                    Console.WriteLine("Error: -app not specified correctly!");
                     return 1;
                 }
 
-                #endregion
+                appTuples.Add(myTuple);
             }
-            else if (ugcId != ContentDownloader.INVALID_MANIFEST_ID)
-            {
-                #region UGC Downloading
+            //if (appParamsList.Count < 1)
+            //{
+            //    Console.WriteLine("Error: -app requires at least 1 value!");
+            //    return 1;
+            //}
 
-                if (InitializeSteam(username, password))
+            //var appTuples = new List<(uint appId, uint? depotId, ulong? manifestId, string branch)>();
+
+            //for (int i = 0; i < appParamsList.Count; i += 4)
+            //{
+            //    var myTuple = (
+            //        appId: uint.TryParse(appParamsList.ElementAtOrDefault(i), out var appId) ? appId : ContentDownloader.INVALID_APP_ID,
+            //        depotId: uint.TryParse(appParamsList.ElementAtOrDefault(i + 1), out var depotId) ? depotId : (uint?)null,
+            //        manifestId: ulong.TryParse(appParamsList.ElementAtOrDefault(i + 2), out var manifestId) ? manifestId : (ulong?)null,
+            //        branch: appParamsList.ElementAtOrDefault(i + 3) ?? ContentDownloader.DEFAULT_BRANCH
+            //    );
+
+            //    if (myTuple.appId == ContentDownloader.INVALID_APP_ID)
+            //    {
+            //        Console.WriteLine("Error: -app not specified correctly!");
+            //        return 1;
+            //    }
+
+            //    appTuples.Add(myTuple);
+            //}
+
+            if (InitializeSteam(username, password))
+            {
+                foreach (var appTuple in appTuples)
                 {
-                    try
+                    var appId = appTuple.appId;
+                    var depotIdList = appTuple.depotId;
+                    var manifestIdList = appTuple.manifestId;
+                    var branch = appTuple.branch;
+                    // Process each appTuple here
+                    // You can access appTuple.appId, appTuple.depotId, appTuple.manifestId, and appTuple.branch
+
+                    var pubFile = GetParameter(args, "-pubfile", ContentDownloader.INVALID_MANIFEST_ID);
+                    var ugcId = GetParameter(args, "-ugc", ContentDownloader.INVALID_MANIFEST_ID);
+                    if ((pubFile != ContentDownloader.INVALID_MANIFEST_ID || ugcId != ContentDownloader.INVALID_MANIFEST_ID) && depotIdList != null)
                     {
-                        await ContentDownloader.DownloadUGCAsync(appId, ugcId).ConfigureAwait(false);
-                    }
-                    catch (Exception ex) when (
-                        ex is ContentDownloaderException
-                        || ex is OperationCanceledException)
-                    {
-                        Console.WriteLine(ex.Message);
+                        Console.WriteLine("Error: -depot cannot be used with -pubfile or -ugc");
                         return 1;
                     }
-                    catch (Exception e)
+                    if (pubFile != ContentDownloader.INVALID_MANIFEST_ID)
                     {
-                        Console.WriteLine("Download failed to due to an unhandled exception: {0}", e.Message);
-                        throw;
-                    }
-                    finally
-                    {
-                        ContentDownloader.ShutdownSteam3();
-                    }
-                }
-                else
-                {
-                    Console.WriteLine("Error: InitializeSteam failed");
-                    return 1;
-                }
+                        #region Pubfile Downloading
 
-                #endregion
+                        try
+                        {
+                            await ContentDownloader.DownloadPubfileAsync(appId, pubFile).ConfigureAwait(false);
+                        }
+                        catch (Exception ex) when (
+                            ex is ContentDownloaderException
+                            || ex is OperationCanceledException)
+                        {
+                            Console.WriteLine(ex.Message);
+                            return 1;
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine("Download failed to due to an unhandled exception: {0}", e.Message);
+                            throw;
+                        }
+                        finally
+                        {
+                            ContentDownloader.ShutdownSteam3();
+                        }
+
+                        #endregion
+                    }
+                    else if (ugcId != ContentDownloader.INVALID_MANIFEST_ID)
+                    {
+                        #region UGC Downloading
+
+                        try
+                        {
+                            await ContentDownloader.DownloadUGCAsync(appId, ugcId).ConfigureAwait(false);
+                        }
+                        catch (Exception ex) when (
+                            ex is ContentDownloaderException
+                            || ex is OperationCanceledException)
+                        {
+                            Console.WriteLine(ex.Message);
+                            return 1;
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine("Download failed to due to an unhandled exception: {0}", e.Message);
+                            throw;
+                        }
+                        finally
+                        {
+                            ContentDownloader.ShutdownSteam3();
+                        }
+
+                        #endregion
+                    }
+                    else
+                    {
+                        #region App downloading
+
+                        //var branch = GetParameter<string>(args, "-branch") ?? GetParameter<string>(args, "-beta") ?? ContentDownloader.DEFAULT_BRANCH;
+                        ContentDownloader.Config.BetaPassword = GetParameter<string>(args, "-betapassword");
+
+                        var depotManifestIds = new List<(uint, ulong)>();
+                        var isUGC = false;
+
+                        //var depotIdList = GetParameterList<uint>(args, "-depot");
+                        //var manifestIdList = GetParameterList<ulong>(args, "-manifest");
+                        //if (manifestIdList.Count > 0)
+                        //{
+                        //    if (depotIdList.Count != manifestIdList.Count)
+                        //    {
+                        //        Console.WriteLine("Error: -manifest requires one id for every -depot specified");
+                        //        return 1;
+                        //    }
+
+                        //    var zippedDepotManifest = depotIdList.Zip(manifestIdList, (depotId, manifestId) => (depotId, manifestId));
+                        //    depotManifestIds.AddRange(zippedDepotManifest);
+                        //}
+                        //else
+                        //{
+                        //depotManifestIds.AddRange(depotIdList.Select(depotId => (depotId, ContentDownloader.INVALID_MANIFEST_ID)));
+                        //}
+
+                        depotManifestIds.Add((depotIdList.Value, manifestIdList ?? ContentDownloader.INVALID_MANIFEST_ID));
+
+                        try
+                        {
+                            await ContentDownloader.DownloadAppAsync(appId, depotManifestIds, branch, isUGC).ConfigureAwait(false);
+                        }
+                        catch (Exception ex) when (
+                            ex is ContentDownloaderException
+                            || ex is OperationCanceledException)
+                        {
+                            Console.WriteLine(ex.Message);
+                            return 1;
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine("Download failed to due to an unhandled exception: {0}", e.Message);
+                            throw;
+                        }
+                        finally
+                        {
+                            if (appTuple.Equals(appTuples.Last()))
+                            {
+                                ContentDownloader.ShutdownSteam3();
+                            }
+                            //ContentDownloader.ShutdownSteam3();
+                        }
+                    }
+
+
+                    #endregion
+                }
             }
             else
             {
-                #region App downloading
-
-                var branch = GetParameter<string>(args, "-branch") ?? GetParameter<string>(args, "-beta") ?? ContentDownloader.DEFAULT_BRANCH;
-                ContentDownloader.Config.BetaPassword = GetParameter<string>(args, "-betapassword");
-
-                var depotManifestIds = new List<(uint, ulong)>();
-                var isUGC = false;
-
-                var depotIdList = GetParameterList<uint>(args, "-depot");
-                var manifestIdList = GetParameterList<ulong>(args, "-manifest");
-                if (manifestIdList.Count > 0)
-                {
-                    if (depotIdList.Count != manifestIdList.Count)
-                    {
-                        Console.WriteLine("Error: -manifest requires one id for every -depot specified");
-                        return 1;
-                    }
-
-                    var zippedDepotManifest = depotIdList.Zip(manifestIdList, (depotId, manifestId) => (depotId, manifestId));
-                    depotManifestIds.AddRange(zippedDepotManifest);
-                }
-                else
-                {
-                    depotManifestIds.AddRange(depotIdList.Select(depotId => (depotId, ContentDownloader.INVALID_MANIFEST_ID)));
-                }
-
-                if (InitializeSteam(username, password))
-                {
-                    try
-                    {
-                        await ContentDownloader.DownloadAppAsync(appId, depotManifestIds, branch, isUGC).ConfigureAwait(false);
-                    }
-                    catch (Exception ex) when (
-                        ex is ContentDownloaderException
-                        || ex is OperationCanceledException)
-                    {
-                        Console.WriteLine(ex.Message);
-                        return 1;
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine("Download failed to due to an unhandled exception: {0}", e.Message);
-                        throw;
-                    }
-                    finally
-                    {
-                        ContentDownloader.ShutdownSteam3();
-                    }
-                }
-                else
-                {
-                    Console.WriteLine("Error: InitializeSteam failed");
-                    return 1;
-                }
-
-                #endregion
+                Console.WriteLine("Error: InitializeSteam failed");
+                return 1;
             }
-
             return 0;
         }
 
