@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -76,68 +77,52 @@ namespace DepotDownloader
 
             ContentDownloader.Config.VerifyAll = HasParameter(args, "-verify-all") || HasParameter(args, "-verify_all") || HasParameter(args, "-validate");
             ContentDownloader.Config.MaxServers = GetParameter(args, "-max-servers", 20);
-            ContentDownloader.Config.MaxDownloads = GetParameter(args, "-max-downloads", 1);
+            ContentDownloader.Config.MaxDownloads = GetParameter(args, "-max-downloads", 8);
             ContentDownloader.Config.MaxServers = Math.Max(ContentDownloader.Config.MaxServers, ContentDownloader.Config.MaxDownloads);
             ContentDownloader.Config.LoginID = HasParameter(args, "-loginid") ? GetParameter<uint>(args, "-loginid") : null;
 
             #endregion
 
-            //var appId = GetParameter(args, "-app", ContentDownloader.INVALID_APP_ID);
-            var appIndices = Enumerable.Range(0, args.Length)
-                                        .Where(i => args[i].Equals("-app", StringComparison.OrdinalIgnoreCase))
-                                        .ToList();
+            List<(uint appId, uint? depotId, ulong? manifestId, string branch)> appTuples;
 
-            if (appIndices.Count == 0)
+            if (HasParameter(args, "-csv"))
             {
-                Console.WriteLine("Error: -app requires at least 1 value!");
-                return 1;
+                var csvFilePath = GetParameter<string>(args, "-csv");
+                appTuples = ReadCsvFile(csvFilePath);
             }
-
-            var appTuples = new List<(uint appId, uint? depotId, ulong? manifestId, string branch)>();
-
-            foreach (var index in appIndices)
+            else
             {
-                var appParamsList = args.Skip(index + 1).Take(4).ToList();
-                var myTuple = (
-                    appId: uint.TryParse(appParamsList.ElementAtOrDefault(0), out var appId) ? appId : ContentDownloader.INVALID_APP_ID,
-                    depotId: uint.TryParse(appParamsList.ElementAtOrDefault(1), out var depotId) ? depotId : (uint?)null,
-                    manifestId: ulong.TryParse(appParamsList.ElementAtOrDefault(2), out var manifestId) ? manifestId : (ulong?)null,
-                    branch: appParamsList.ElementAtOrDefault(3) ?? ContentDownloader.DEFAULT_BRANCH
-                );
+                var appIndices = Enumerable.Range(0, args.Length)
+                                            .Where(i => args[i].Equals("-app", StringComparison.OrdinalIgnoreCase))
+                                            .ToList();
 
-                if (myTuple.appId == ContentDownloader.INVALID_APP_ID)
+                if (appIndices.Count == 0)
                 {
-                    Console.WriteLine("Error: -app not specified correctly!");
+                    Console.WriteLine("Error: -app requires at least 1 value!");
                     return 1;
                 }
 
-                appTuples.Add(myTuple);
+                appTuples = new List<(uint appId, uint? depotId, ulong? manifestId, string branch)>();
+
+                foreach (var index in appIndices)
+                {
+                    var appParamsList = args.Skip(index + 1).Take(4).ToList();
+                    var myTuple = (
+                        appId: uint.TryParse(appParamsList.ElementAtOrDefault(0), out var appId) ? appId : ContentDownloader.INVALID_APP_ID,
+                        depotId: uint.TryParse(appParamsList.ElementAtOrDefault(1), out var depotId) ? depotId : (uint?)null,
+                        manifestId: ulong.TryParse(appParamsList.ElementAtOrDefault(2), out var manifestId) ? manifestId : (ulong?)null,
+                        branch: appParamsList.ElementAtOrDefault(3) ?? ContentDownloader.DEFAULT_BRANCH
+                    );
+
+                    if (myTuple.appId == ContentDownloader.INVALID_APP_ID)
+                    {
+                        Console.WriteLine("Error: -app not specified correctly!");
+                        return 1;
+                    }
+
+                    appTuples.Add(myTuple);
+                }
             }
-            //if (appParamsList.Count < 1)
-            //{
-            //    Console.WriteLine("Error: -app requires at least 1 value!");
-            //    return 1;
-            //}
-
-            //var appTuples = new List<(uint appId, uint? depotId, ulong? manifestId, string branch)>();
-
-            //for (int i = 0; i < appParamsList.Count; i += 4)
-            //{
-            //    var myTuple = (
-            //        appId: uint.TryParse(appParamsList.ElementAtOrDefault(i), out var appId) ? appId : ContentDownloader.INVALID_APP_ID,
-            //        depotId: uint.TryParse(appParamsList.ElementAtOrDefault(i + 1), out var depotId) ? depotId : (uint?)null,
-            //        manifestId: ulong.TryParse(appParamsList.ElementAtOrDefault(i + 2), out var manifestId) ? manifestId : (ulong?)null,
-            //        branch: appParamsList.ElementAtOrDefault(i + 3) ?? ContentDownloader.DEFAULT_BRANCH
-            //    );
-
-            //    if (myTuple.appId == ContentDownloader.INVALID_APP_ID)
-            //    {
-            //        Console.WriteLine("Error: -app not specified correctly!");
-            //        return 1;
-            //    }
-
-            //    appTuples.Add(myTuple);
-            //}
 
             if (InitializeSteam(username, password))
             {
@@ -147,8 +132,6 @@ namespace DepotDownloader
                     var depotIdList = appTuple.depotId;
                     var manifestIdList = appTuple.manifestId;
                     var branch = appTuple.branch;
-                    // Process each appTuple here
-                    // You can access appTuple.appId, appTuple.depotId, appTuple.manifestId, and appTuple.branch
 
                     var pubFile = GetParameter(args, "-pubfile", ContentDownloader.INVALID_MANIFEST_ID);
                     var ugcId = GetParameter(args, "-ugc", ContentDownloader.INVALID_MANIFEST_ID);
@@ -215,29 +198,10 @@ namespace DepotDownloader
                     {
                         #region App downloading
 
-                        //var branch = GetParameter<string>(args, "-branch") ?? GetParameter<string>(args, "-beta") ?? ContentDownloader.DEFAULT_BRANCH;
                         ContentDownloader.Config.BetaPassword = GetParameter<string>(args, "-betapassword");
 
                         var depotManifestIds = new List<(uint, ulong)>();
                         var isUGC = false;
-
-                        //var depotIdList = GetParameterList<uint>(args, "-depot");
-                        //var manifestIdList = GetParameterList<ulong>(args, "-manifest");
-                        //if (manifestIdList.Count > 0)
-                        //{
-                        //    if (depotIdList.Count != manifestIdList.Count)
-                        //    {
-                        //        Console.WriteLine("Error: -manifest requires one id for every -depot specified");
-                        //        return 1;
-                        //    }
-
-                        //    var zippedDepotManifest = depotIdList.Zip(manifestIdList, (depotId, manifestId) => (depotId, manifestId));
-                        //    depotManifestIds.AddRange(zippedDepotManifest);
-                        //}
-                        //else
-                        //{
-                        //depotManifestIds.AddRange(depotIdList.Select(depotId => (depotId, ContentDownloader.INVALID_MANIFEST_ID)));
-                        //}
 
                         depotManifestIds.Add((depotIdList.Value, manifestIdList ?? ContentDownloader.INVALID_MANIFEST_ID));
 
@@ -263,10 +227,8 @@ namespace DepotDownloader
                             {
                                 ContentDownloader.ShutdownSteam3();
                             }
-                            //ContentDownloader.ShutdownSteam3();
                         }
                     }
-
 
                     #endregion
                 }
@@ -386,6 +348,8 @@ namespace DepotDownloader
             Console.WriteLine("       depotdownloader -app <id> -ugc <id> [-username <username> [-password <password>]]");
             Console.WriteLine();
             Console.WriteLine("Parameters:");
+            Console.WriteLine("  -csv <file>              - Reads the contents of a CSV file and passes the data for downloading.");
+            Console.WriteLine();
             Console.WriteLine("  -app <#>                 - the AppID to download.");
             Console.WriteLine("  -depot <#>               - the DepotID to download.");
             Console.WriteLine("  -manifest <id>           - manifest id of content to download (requires -depot, default: current for branch).");
@@ -419,6 +383,29 @@ namespace DepotDownloader
             }
 
             Console.WriteLine($"Runtime: {RuntimeInformation.FrameworkDescription} on {RuntimeInformation.OSDescription}");
+        }
+
+        static List<(uint appId, uint? depotId, ulong? manifestId, string branch)> ReadCsvFile(string filePath)
+        {
+            var appTuples = new List<(uint appId, uint? depotId, ulong? manifestId, string branch)>();
+
+            using (var reader = new StreamReader(filePath))
+            using (var csv = new CsvHelper.CsvReader(reader, CultureInfo.InvariantCulture))
+            {
+                csv.Read();
+                csv.ReadHeader();
+                while (csv.Read())
+                {
+                    var appId = csv.GetField<uint>("AppID");
+                    var depotId = csv.GetField<uint?>("DepotID");
+                    var manifestId = csv.GetField<ulong?>("ManifestID");
+                    var branch = csv.GetField<string>("Branch") ?? ContentDownloader.DEFAULT_BRANCH;
+
+                    appTuples.Add((appId, depotId, manifestId, branch));
+                }
+            }
+
+            return appTuples;
         }
     }
 }
