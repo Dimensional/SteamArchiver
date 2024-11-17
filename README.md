@@ -9,36 +9,17 @@ This program must be run from a console, it has no GUI.
 
 ### Directly from GitHub
 
-Download a binary from [the releases page](https://github.com/SteamRE/DepotDownloader/releases/latest).
-
-### via Windows Package Manager CLI (aka winget)
-
-On Windows, [winget](https://github.com/microsoft/winget-cli) users can download and install
-the latest Terminal release by installing the `SteamRE.DepotDownloader`
-package:
-
-```powershell
-winget install --exact --id SteamRE.DepotDownloader
-```
-
-### via Homebrew
-
-On macOS, [Homebrew](https://brew.sh) users can download and install that latest release by running the following commands:
-
-```shell
-brew tap steamre/tools
-brew install depotdownloader
-```
+~~Download a binary from [the releases page](https://github.com/SteamRE/DepotDownloader/releases/latest).~~
 
 ## Usage
 
 ### Downloading one or all depots for an app
 ```powershell
-./DepotDownloader -app <id> [-depot <id> [-manifest <id>]]
+./DepotDownloader -app <id> [<depotid> [<manifestid>]]
                  [-username <username> [-password <password>]] [other options]
 ```
 
-For example: `./DepotDownloader -app 730 -depot 731 -manifest 7617088375292372759`
+For example: `./DepotDownloader -app 730 731 7617088375292372759`
 
 By default it will use anonymous account ([view which apps are available on it here](https://steamdb.info/sub/17906/)).
 
@@ -63,25 +44,14 @@ For example: `./DepotDownloader -app 730 -ugc 770604181014286929`
 
 Parameter               | Description
 ----------------------- | -----------
-`-app <#>`				| the AppID to download.
-`-depot <#>`			| the DepotID to download.
-`-manifest <id>`		| manifest id of content to download (requires `-depot`, default: current for branch).
+`-app <#> <#> <#>`				| the AppID to download, and optionally the DepotID and ManifestID.
 `-ugc <#>`				| the UGC ID to download.
 `-beta <branchname>`	| download from specified branch if available (default: Public).
 `-betapassword <pass>`	| branch password if applicable.
-`-all-platforms`		| downloads all platform-specific depots when `-app` is used.
-`-os <os>`				| the operating system for which to download the game (windows, macos or linux, default: OS the program is currently running on)
-`-osarch <arch>`		| the architecture for which to download the game (32 or 64, default: the host's architecture)
-`-all-archs`			| download all architecture-specific depots when `-app` is used.
-`-all-languages`		| download all language-specific depots when `-app` is used.
-`-language <lang>`		| the language for which to download the game (default: english)
-`-lowviolence`			| download low violence depots when `-app` is used.
 `-pubfile <#>`			| the PublishedFileId to download. (Will automatically resolve to UGC id)
 `-username <user>`		| the username of the account to login to for restricted content.
 `-password <pass>`		| the password of the account to login to for restricted content.
 `-remember-password`	| if set, remember the password for subsequent logins of this user. (Use `-username <username> -remember-password` as login credentials)
-`-dir <installdir>`     | the directory in which to place downloaded files.
-`-filelist <file.txt>`	| the name of a local file that contains a list of files to download (from the manifest). prefix file path with `regex:` if you want to match with regex. each file path should be on their own line.
 `-validate`				| Include checksum verification of files already downloaded
 `-manifest-only`		| downloads a human readable manifest for any depots that would be downloaded.
 `-cellid <#>`			| the overridden CellID of the content server to download from.
