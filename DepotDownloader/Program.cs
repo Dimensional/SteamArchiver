@@ -12,6 +12,7 @@ using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using SteamKit2;
+using static DepotDownloader.ContentDownloader;
 
 namespace DepotDownloader
 {
@@ -221,6 +222,11 @@ namespace DepotDownloader
                             Console.WriteLine("Download failed to due to an unhandled exception: {0}", e.Message);
                             throw;
                         }
+                        //catch (Http401Exception ex)
+                        //{
+                        //    Console.WriteLine("Error: {0}", ex.Message);
+                        //    continue;
+                        //}
                         finally
                         {
                             if (appTuple.Equals(appTuples.Last()))
