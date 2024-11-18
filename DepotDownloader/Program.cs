@@ -97,7 +97,7 @@ namespace DepotDownloader
                                             .Where(i => args[i].Equals("-app", StringComparison.OrdinalIgnoreCase))
                                             .ToList();
 
-                if (appIndices.Count == 0)
+                if (appIndices.Count <= 1)
                 {
                     Console.WriteLine("Error: -app requires at least 1 value!");
                     return 1;
@@ -356,10 +356,9 @@ namespace DepotDownloader
             Console.WriteLine("Parameters:");
             Console.WriteLine("  -csv <file>              - Reads the contents of a CSV file and passes the data for downloading.");
             Console.WriteLine();
-            Console.WriteLine("  -app <#>                 - the AppID to download.");
-            Console.WriteLine("  -depot <#>               - the DepotID to download.");
-            Console.WriteLine("  -manifest <id>           - manifest id of content to download (requires -depot, default: current for branch).");
-            Console.WriteLine($"  -beta <branchname>       - download from specified branch if available (default: {ContentDownloader.DEFAULT_BRANCH}).");
+            Console.WriteLine("  -app <#> <#> <#> <branch>  - the AppID and DepotID to download, and optionally accepts a ManifestID, and branch");
+            Console.WriteLine($"                             for the manifests that require it. Branch defaults to {ContentDownloader.DEFAULT_BRANCH}).");
+            //Console.WriteLine($"  -beta <branchname>       - download from specified branch if available (default: {ContentDownloader.DEFAULT_BRANCH}).");
             Console.WriteLine("  -betapassword <pass>     - branch password if applicable.");
             Console.WriteLine();
             Console.WriteLine("  -ugc <#>                 - the UGC ID to download.");
