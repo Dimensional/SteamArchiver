@@ -569,9 +569,10 @@ namespace DepotDownloader
             var manifestRequestCodeExpiration = DateTime.MinValue;
 
             var manifestDir = Path.Combine(depotPath, $"{depot.ManifestId.ToString()}.zip");
+            bool ManifestExists = File.Exists(manifestDir);
             do
             {
-                if (!File.Exists(manifestDir))
+                if (!ManifestExists)
                 {
                     cts.Token.ThrowIfCancellationRequested();
 
@@ -698,7 +699,7 @@ namespace DepotDownloader
                 }
             } while (depotManifest == null);
 
-            if (depotManifest == null && manifestRequestCode == 0)
+            if ((depotManifest == null || manifestRequestCode == 0) && !ManifestExists)
             {
                 //Console.WriteLine("\nUnable to download manifest {0} for depot {1}", depot.ManifestId, depot.DepotId);
                 cts.Cancel();

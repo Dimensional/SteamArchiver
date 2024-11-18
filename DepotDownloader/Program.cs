@@ -97,9 +97,9 @@ namespace DepotDownloader
                                             .Where(i => args[i].Equals("-app", StringComparison.OrdinalIgnoreCase))
                                             .ToList();
 
-                if (appIndices.Count <= 1)
+                if (appIndices.Count < 1)
                 {
-                    Console.WriteLine("Error: -app requires at least 1 value!");
+                    Console.WriteLine("Error: -app requires at least 2 values!");
                     return 1;
                 }
 
