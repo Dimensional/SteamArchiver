@@ -38,14 +38,6 @@ jobs:
       - name: Build
         run: dotnet publish SteamArchiver/SteamArchiver.csproj -c ${{ matrix.configuration }}
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        if: matrix.configuration == 'Release' && matrix.runs-on == 'windows-latest'
-        with:
-          name: SteamArchiver-framework
-          path: artifacts
-          if-no-files-found: error
-
       - name: Publish Windows-x64
         if: matrix.configuration == 'Release' && matrix.runs-on == 'windows-latest'
         run: dotnet publish SteamArchiver/SteamArchiver.csproj --configuration Release -p:PublishSingleFile=true -p:DebugType=embedded --self-contained --runtime win-x64 --output selfcontained-win-x64
