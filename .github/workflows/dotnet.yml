@@ -11,10 +11,12 @@ on:
 
 jobs:
   build:
-
-    matrix:
-      runs-on: [ubuntu-latest, windows-latest]
-      configuration: [Release, Debug]
+    name: .NET on ${{ matrix.runs-on }} (${{ matrix.configuration }})
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      matrix:
+        runs-on: [ubuntu-latest, windows-latest]
+        configuration: [Release, Debug]
 
     steps:
     - uses: actions/checkout@v4
