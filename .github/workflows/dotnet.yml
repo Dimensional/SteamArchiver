@@ -27,7 +27,7 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
     - name: Build
-      run: dotnet publish SteamArchiver/SteamArchiver.csproj -c ${{ matrix.configuration }} -o artifacts /p:ContinuousIntegrationBuild=true
+      run: dotnet publish SteamArchiver/SteamArchiver.csproj -c ${{ matrix.configuration }}
     - name: Test
       run: dotnet test --no-build --verbosity normal
 
