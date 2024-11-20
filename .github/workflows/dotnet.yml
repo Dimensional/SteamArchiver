@@ -12,7 +12,9 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    matrix:
+      runs-on: [ubuntu-latest, windows-latest]
+      configuration: [Release, Debug]
 
     steps:
     - uses: actions/checkout@v4
@@ -23,6 +25,16 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
     - name: Build
-      run: dotnet build --no-restore
+      run: dotnet publish SteamArchiver/SteamArchiver.csproj -c ${{ matrix.configuration }} -o artifacts /p:ContinuousIntegrationBuild=true
     - name: Test
       run: dotnet test --no-build --verbosity normal
+
+    - name: Publish Windows-x64
+      if: matrix.configuration == 'Release' && matrix.runs-on == 'windows-latest'
+      run: dotnet publish SteamArchiver/SteamArchiver.csproj --configuration Release -p:PublishSingleFile=true -p:DebugType=embedded --self-contained --runtime win-x64 --output selfcontained-win-x64
+    - name: Publish Linux-x64
+      if: matrix.configuration == 'Release' && matrix.runs-on == 'ubuntu-latest''
+      run: dotnet publish SteamArchiver/SteamArchiver.csproj --configuration Release -p:PublishSingleFile=true -p:DebugType=embedded --self-contained --runtime linux-x64 --output selfcontained-linux-x64
+    - name: Publish Linux-arm64
+      if: matrix.configuration == 'Release' && matrix.runs-on == 'ubuntu-latest''
+      run: dotnet publish SteamArchiver/SteamArchiver.csproj --configuration Release -p:PublishSingleFile=true -p:DebugType=embedded --self-contained --runtime linux-arm64 --output selfcontained-linux-arm64
