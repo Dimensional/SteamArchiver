@@ -35,8 +35,8 @@ jobs:
       if: matrix.configuration == 'Release' && matrix.runs-on == 'windows-latest'
       run: dotnet publish SteamArchiver/SteamArchiver.csproj --configuration Release -p:PublishSingleFile=true -p:DebugType=embedded --self-contained --runtime win-x64 --output selfcontained-win-x64
     - name: Publish Linux-x64
-      if: matrix.configuration == 'Release' && matrix.runs-on == 'ubuntu-latest''
+      if: matrix.configuration == 'Release' && matrix.runs-on == 'ubuntu-latest'
       run: dotnet publish SteamArchiver/SteamArchiver.csproj --configuration Release -p:PublishSingleFile=true -p:DebugType=embedded --self-contained --runtime linux-x64 --output selfcontained-linux-x64
     - name: Publish Linux-arm64
-      if: matrix.configuration == 'Release' && matrix.runs-on == 'ubuntu-latest''
+      if: matrix.configuration == 'Release' && matrix.runs-on == 'ubuntu-latest'
       run: dotnet publish SteamArchiver/SteamArchiver.csproj --configuration Release -p:PublishSingleFile=true -p:DebugType=embedded --self-contained --runtime linux-arm64 --output selfcontained-linux-arm64
