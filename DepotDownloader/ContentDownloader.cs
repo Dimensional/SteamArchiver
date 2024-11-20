@@ -155,6 +155,17 @@ namespace DepotDownloader
             return uint.Parse(buildid.Value);
         }
 
+        static uint GetSteam3DepotProxyAppId(uint depotId, uint appId)
+        {
+            var depots = GetSteam3AppSection(appId, EAppInfoSection.Depots);
+            var depotChild = depots[depotId.ToString()];
+            if (depotChild == KeyValue.Invalid)
+                return INVALID_APP_ID;
+            if (depotChild["depotfromapp"] == KeyValue.Invalid)
+                return INVALID_APP_ID;
+            return depotChild["depotfromapp"].AsUnsignedInteger();
+        }
+
         static async Task<ulong> GetSteam3DepotManifest(uint depotId, uint appId, string branch)
         {
             var depots = GetSteam3AppSection(appId, EAppInfoSection.Depots);
@@ -320,9 +331,6 @@ namespace DepotDownloader
         {
             cdnPool = new CDNClientPool(steam3, appId);
 
-            // Load our configuration data containing the depots currently installed
-            //var configPath = DEFAULT_DOWNLOAD_DIR;
-
             await steam3?.RequestAppInfo(appId);
 
             if (!await AccountHasAccess(appId))
@@ -331,7 +339,6 @@ namespace DepotDownloader
                 {
                     Console.WriteLine("Obtained FreeOnDemand license for app {0}", appId);
 
-                    // Fetch app info again in case we didn't get it fully without a license.
                     await steam3.RequestAppInfo(appId, true);
                 }
                 else
@@ -447,7 +454,11 @@ namespace DepotDownloader
                 }
             }
 
-            await steam3.RequestDepotKey(depotId, appId);
+            var containingAppId = appId;
+            var proxyAppId = GetSteam3DepotProxyAppId(depotId, appId);
+            if (proxyAppId != INVALID_APP_ID) containingAppId = proxyAppId;
+
+            await steam3.RequestDepotKey(depotId, containingAppId);
             if (!steam3.DepotKeys.TryGetValue(depotId, out var depotKey))
             {
                 Console.WriteLine("No valid depot key for {0}, unable to download.", depotId);
@@ -474,7 +485,7 @@ namespace DepotDownloader
                 return null;
             }
 
-            return new DepotDownloadInfo(depotId, appId, manifestId, branch, installDir, depotKey);
+            return new DepotDownloadInfo(depotId, containingAppId, manifestId, branch, installDir, depotKey);
         }
 
         //private class ChunkMatch(ProtoManifest.ChunkData oldChunk, ProtoManifest.ChunkData newChunk)
@@ -1100,7 +1111,12 @@ namespace DepotDownloader
                             Console.WriteLine("Encountered {1} for chunk {0}. Aborting.", chunkID, (int)e.StatusCode);
                             break;
                         }
-
+                        if (e.StatusCode == HttpStatusCode.GatewayTimeout || e.StatusCode == HttpStatusCode.BadGateway)
+                        {
+                            Console.WriteLine("Encountered {1} for chunk {0}. Retrying after delay.", chunkID, (int)e.StatusCode);
+                            await Task.Delay(5000);
+                            continue;
+                        }
                         Console.WriteLine("Encountered error downloading chunk {0}: {1}", chunkID, e.StatusCode);
                     }
                     catch (OperationCanceledException)

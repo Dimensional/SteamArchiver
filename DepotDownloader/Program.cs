@@ -94,8 +94,8 @@ namespace DepotDownloader
             else
             {
                 var appIndices = Enumerable.Range(0, args.Length)
-                                            .Where(i => args[i].Equals("-app", StringComparison.OrdinalIgnoreCase))
-                                            .ToList();
+                                                .Where(i => args[i].Equals("-app", StringComparison.OrdinalIgnoreCase))
+                                                .ToList();
 
                 if (appIndices.Count < 1)
                 {
@@ -105,13 +105,16 @@ namespace DepotDownloader
 
                 appTuples = new List<(uint appId, uint? depotId, ulong? manifestId, string branch)>();
 
-                foreach (var index in appIndices)
+                for (int i = 0; i < appIndices.Count; i++)
                 {
-                    var appParamsList = args.Skip(index + 1).Take(4).ToList();
+                    int startIndex = appIndices[i] + 1;
+                    int endIndex = (i + 1 < appIndices.Count) ? appIndices[i + 1] : args.Length;
+
+                    var appParamsList = args.Skip(startIndex).Take(endIndex - startIndex).ToList();
                     var myTuple = (
                         appId: uint.TryParse(appParamsList.ElementAtOrDefault(0), out var appId) ? appId : ContentDownloader.INVALID_APP_ID,
-                        depotId: uint.TryParse(appParamsList.ElementAtOrDefault(1), out var depotId) ? depotId : (uint?)null,
-                        manifestId: ulong.TryParse(appParamsList.ElementAtOrDefault(2), out var manifestId) ? manifestId : (ulong?)null,
+                        depotId: uint.TryParse(appParamsList.ElementAtOrDefault(1), out var depotId) ? depotId : ContentDownloader.INVALID_DEPOT_ID,
+                        manifestId: ulong.TryParse(appParamsList.ElementAtOrDefault(2), out var manifestId) ? manifestId : ContentDownloader.INVALID_MANIFEST_ID,
                         branch: appParamsList.ElementAtOrDefault(3) ?? ContentDownloader.DEFAULT_BRANCH
                     );
 
@@ -204,8 +207,10 @@ namespace DepotDownloader
                         var depotManifestIds = new List<(uint, ulong)>();
                         var isUGC = false;
 
-                        depotManifestIds.Add((depotIdList.Value, manifestIdList ?? ContentDownloader.INVALID_MANIFEST_ID));
-
+                        if (depotIdList.HasValue)
+                        {
+                            depotManifestIds.Add((depotIdList.Value, manifestIdList ?? ContentDownloader.INVALID_MANIFEST_ID));
+                        }
                         try
                         {
                             await ContentDownloader.DownloadAppAsync(appId, depotManifestIds, branch, isUGC).ConfigureAwait(false);
