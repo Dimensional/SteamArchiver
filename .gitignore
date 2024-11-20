@@ -118,6 +118,4 @@ cryptopp/
 
 # misc
 Thumbs.db
-/DepotDownloader/Properties
-/DepotDownloader/Properties/launchSettings.json
 /SteamArchiver/Properties/launchSettings.json

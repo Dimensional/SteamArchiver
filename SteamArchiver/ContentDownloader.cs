@@ -33,9 +33,11 @@ namespace SteamArchiver
         private static Steam3Session steam3;
         private static CDNClientPool cdnPool;
         private static string depotPath;
+        private static string exeDirectory = AppDomain.CurrentDomain.BaseDirectory;
         private const string DEFAULT_DOWNLOAD_DIR = "depots";
         private const string CONFIG_DIR = ".DepotDownloader";
         private const string DEPOT_KEY_DIR = "keys";
+
         //private static readonly string STAGING_DIR = Path.Combine(CONFIG_DIR, "staging");
 
         private sealed class DepotDownloadInfo(
@@ -55,11 +57,12 @@ namespace SteamArchiver
             installDir = null;
             try
             {
-                Directory.CreateDirectory(DEFAULT_DOWNLOAD_DIR);
 
-                depotPath = Path.Combine(DEFAULT_DOWNLOAD_DIR, depotId.ToString());
+                Directory.CreateDirectory(Path.Combine(exeDirectory, DEFAULT_DOWNLOAD_DIR));
+
+                depotPath = Path.Combine(exeDirectory, DEFAULT_DOWNLOAD_DIR, depotId.ToString());
                 Directory.CreateDirectory(depotPath);
-                Directory.CreateDirectory(DEPOT_KEY_DIR);
+                Directory.CreateDirectory(Path.Combine(exeDirectory, DEPOT_KEY_DIR));
                 installDir = depotPath;
             }
             catch
@@ -463,11 +466,12 @@ namespace SteamArchiver
             var proxyAppId = GetSteam3DepotProxyAppId(depotId, appId);
             if (proxyAppId != INVALID_APP_ID) containingAppId = proxyAppId;
 
-            if (!Directory.Exists(DEPOT_KEY_DIR))
+            var keyDir = Path.Combine(exeDirectory, DEPOT_KEY_DIR);
+            if (!Directory.Exists(keyDir))
             {
-                Directory.CreateDirectory(DEPOT_KEY_DIR);
+                Directory.CreateDirectory(keyDir);
             }
-            var depotFile = Path.Combine(DEPOT_KEY_DIR, $"{depotId}.depotkey");
+            var depotFile = Path.Combine(keyDir, $"{depotId}.depotkey");
             byte[] depotKey;
             if (!File.Exists(depotFile))
             {
