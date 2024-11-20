@@ -12,9 +12,8 @@ using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using SteamKit2;
-using static DepotDownloader.ContentDownloader;
 
-namespace DepotDownloader
+namespace SteamArchiver
 {
     class Program
     {
@@ -99,7 +98,7 @@ namespace DepotDownloader
 
                 if (appIndices.Count < 1)
                 {
-                    Console.WriteLine("Error: -app requires at least 2 values!");
+                    Console.WriteLine("Error: -app requires at least 1 value!");
                     return 1;
                 }
 
@@ -113,7 +112,7 @@ namespace DepotDownloader
                     var appParamsList = args.Skip(startIndex).Take(endIndex - startIndex).ToList();
                     var myTuple = (
                         appId: uint.TryParse(appParamsList.ElementAtOrDefault(0), out var appId) ? appId : ContentDownloader.INVALID_APP_ID,
-                        depotId: uint.TryParse(appParamsList.ElementAtOrDefault(1), out var depotId) ? depotId : ContentDownloader.INVALID_DEPOT_ID,
+                        depotId: uint.TryParse(appParamsList.ElementAtOrDefault(1), out var depotId) ? depotId : (uint?)null,
                         manifestId: ulong.TryParse(appParamsList.ElementAtOrDefault(2), out var manifestId) ? manifestId : ContentDownloader.INVALID_MANIFEST_ID,
                         branch: appParamsList.ElementAtOrDefault(3) ?? ContentDownloader.DEFAULT_BRANCH
                     );

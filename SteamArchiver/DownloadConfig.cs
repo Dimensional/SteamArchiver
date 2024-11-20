@@ -4,7 +4,7 @@
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
-namespace DepotDownloader
+namespace SteamArchiver
 {
     class DownloadConfig
     {

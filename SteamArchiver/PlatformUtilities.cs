@@ -6,7 +6,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
-namespace DepotDownloader
+namespace SteamArchiver
 {
     static class PlatformUtilities
     {

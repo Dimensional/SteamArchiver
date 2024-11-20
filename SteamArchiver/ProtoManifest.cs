@@ -9,7 +9,7 @@ using System.Security.Cryptography;
 using ProtoBuf;
 using SteamKit2;
 
-namespace DepotDownloader
+namespace SteamArchiver
 {
     [ProtoContract]
     class ProtoManifest

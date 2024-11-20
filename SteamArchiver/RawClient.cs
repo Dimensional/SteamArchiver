@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using SteamKit2;
 using SteamKit2.CDN;
 
-namespace DepotDownloader
+namespace SteamArchiver
 {
     /// <summary>
     /// The <see cref="RawClient"/> class is used for downloading game content from the Steam servers.

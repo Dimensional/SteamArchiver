@@ -13,9 +13,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using SteamKit2;
 using SteamKit2.CDN;
-using static SteamKit2.Internal.CContentBuilder_GetMissingDepotChunks_Response;
 
-namespace DepotDownloader
+namespace SteamArchiver
 {
     class ContentDownloaderException(string value) : Exception(value)
     {
@@ -77,7 +76,7 @@ namespace DepotDownloader
         }
 
 
-        static async Task<bool> AccountHasAccess(uint depotId)
+        static async Task<bool> AccountHasAccess(uint appId, uint depotId)
         {
             if (steam3 == null || steam3.steamUser.SteamID == null || (steam3.Licenses == null && steam3.steamUser.SteamID.AccountType != EAccountType.AnonUser))
                 return false;
@@ -105,6 +104,11 @@ namespace DepotDownloader
                         return true;
                 }
             }
+
+            // Check if this app is free to download without a license
+            var info = GetSteam3AppSection(appId, EAppInfoSection.Common);
+            if (info != null && info["FreeToDownload"].AsBoolean())
+                return true;
 
             return false;
         }
@@ -333,12 +337,13 @@ namespace DepotDownloader
 
             await steam3?.RequestAppInfo(appId);
 
-            if (!await AccountHasAccess(appId))
+            if (!await AccountHasAccess(appId, appId))
             {
                 if (await steam3.RequestFreeAppLicense(appId))
                 {
                     Console.WriteLine("Obtained FreeOnDemand license for app {0}", appId);
 
+                    // Fetch app info again in case we didn't get it fully without a license.
                     await steam3.RequestAppInfo(appId, true);
                 }
                 else
@@ -430,7 +435,7 @@ namespace DepotDownloader
                 await steam3.RequestAppInfo(appId);
             }
 
-            if (!await AccountHasAccess(depotId))
+            if (!await AccountHasAccess(appId, depotId))
             {
                 Console.WriteLine("Depot {0} is not available from this account.", depotId);
 
@@ -606,14 +611,18 @@ namespace DepotDownloader
                         // The manifest request code is only valid for a specific period in time
                         if (manifestRequestCode == 0 || now >= manifestRequestCodeExpiration)
                         {
-                            manifestRequestCode = await steam3.GetDepotManifestRequestCodeAsync(
-                                depot.DepotId,
-                                depot.AppId,
-                                depot.ManifestId,
-                                depot.Branch);
-                            // This code will hopefully be valid for one period following the issuing period
-                            manifestRequestCodeExpiration = now.Add(TimeSpan.FromMinutes(5));
-
+                            var retry = 0;
+                            do
+                            {
+                                manifestRequestCode = await steam3.GetDepotManifestRequestCodeAsync(
+                                    depot.DepotId,
+                                    depot.AppId,
+                                    depot.ManifestId,
+                                    depot.Branch);
+                                // This code will hopefully be valid for one period following the issuing period
+                                manifestRequestCodeExpiration = now.Add(TimeSpan.FromMinutes(5));
+                                retry++;
+                            } while (manifestRequestCode == 0 && retry < 5);
                             // If we could not get the manifest code, this is a fatal error
                             if (manifestRequestCode == 0)
                             {

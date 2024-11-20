@@ -4,7 +4,7 @@
 using System;
 using Spectre.Console;
 
-namespace DepotDownloader;
+namespace SteamArchiver;
 
 static class Ansi
 {
