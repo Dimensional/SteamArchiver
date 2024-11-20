@@ -463,23 +463,29 @@ namespace SteamArchiver
             var proxyAppId = GetSteam3DepotProxyAppId(depotId, appId);
             if (proxyAppId != INVALID_APP_ID) containingAppId = proxyAppId;
 
-            await steam3.RequestDepotKey(depotId, containingAppId);
-            if (!steam3.DepotKeys.TryGetValue(depotId, out var depotKey))
+            if (!Directory.Exists(DEPOT_KEY_DIR))
             {
-                Console.WriteLine("No valid depot key for {0}, unable to download.", depotId);
-                return null;
+                Directory.CreateDirectory(DEPOT_KEY_DIR);
             }
-            else
+            var depotFile = Path.Combine(DEPOT_KEY_DIR, $"{depotId}.depotkey");
+            byte[] depotKey;
+            if (!File.Exists(depotFile))
             {
-                var depotFile = Path.Combine(DEPOT_KEY_DIR, $"{depotId}.depotkey");
-                if (!Directory.Exists(DEPOT_KEY_DIR))
+                await steam3.RequestDepotKey(depotId, containingAppId);
+                if (!steam3.DepotKeys.TryGetValue(depotId, out depotKey))
                 {
-                    Directory.CreateDirectory(DEPOT_KEY_DIR);
+                    Console.WriteLine("No valid depot key for {0}, unable to download.", depotId);
+                    return null;
                 }
-                if (!File.Exists(depotFile))
+                else
                 {
                     await File.WriteAllBytesAsync(depotFile, depotKey);
                 }
+            }
+            else
+            {
+                Console.WriteLine($"Existing depot key for {depotId} found");
+                depotKey = await File.ReadAllBytesAsync(depotFile);
             }
 
             var uVersion = GetSteam3AppBuildNumber(appId, branch);

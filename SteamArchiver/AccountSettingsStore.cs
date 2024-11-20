@@ -6,7 +6,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.IO.IsolatedStorage;
 using ProtoBuf;
 
 namespace SteamArchiver
@@ -42,20 +41,23 @@ namespace SteamArchiver
         }
 
         public static AccountSettingsStore Instance;
-        static readonly IsolatedStorageFile IsolatedStorage = IsolatedStorageFile.GetUserStoreForAssembly();
 
         public static void LoadFromFile(string filename)
         {
             if (Loaded)
                 throw new Exception("Config already loaded");
 
-            if (IsolatedStorage.FileExists(filename))
+            string exeDirectory = AppDomain.CurrentDomain.BaseDirectory;
+            string filePath = Path.Combine(exeDirectory, filename);
+
+            if (File.Exists(filePath))
             {
                 try
                 {
-                    using var fs = IsolatedStorage.OpenFile(filename, FileMode.Open, FileAccess.Read);
+                    using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read);
                     using var ds = new DeflateStream(fs, CompressionMode.Decompress);
                     Instance = Serializer.Deserialize<AccountSettingsStore>(ds);
+                    Console.WriteLine($"Loaded account settings from {filePath}");
                 }
                 catch (IOException ex)
                 {
@@ -68,7 +70,7 @@ namespace SteamArchiver
                 Instance = new AccountSettingsStore();
             }
 
-            Instance.FileName = filename;
+            Instance.FileName = filePath;
         }
 
         public static void Save()
@@ -78,9 +80,10 @@ namespace SteamArchiver
 
             try
             {
-                using var fs = IsolatedStorage.OpenFile(Instance.FileName, FileMode.Create, FileAccess.Write);
+                using var fs = new FileStream(Instance.FileName, FileMode.Create, FileAccess.Write);
                 using var ds = new DeflateStream(fs, CompressionMode.Compress);
                 Serializer.Serialize(ds, Instance);
+                Console.WriteLine($"Saved account settings to {Instance.FileName}");
             }
             catch (IOException ex)
             {
