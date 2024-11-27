@@ -33,12 +33,14 @@ namespace SteamArchiver
         private static Steam3Session steam3;
         private static CDNClientPool cdnPool;
         private static string depotPath;
-        private static string exeDirectory = AppDomain.CurrentDomain.BaseDirectory;
+        private static readonly string exeDirectory = AppDomain.CurrentDomain.BaseDirectory;
         private const string DEFAULT_DOWNLOAD_DIR = "depots";
         private const string CONFIG_DIR = ".DepotDownloader";
         private const string DEPOT_KEY_DIR = "keys";
 
         //private static readonly string STAGING_DIR = Path.Combine(CONFIG_DIR, "staging");
+        // Cache for already acquired depot keys
+        private static readonly HashSet<uint> acquiredDepotKeys = new();
 
         private sealed class DepotDownloadInfo(
             uint depotid, uint appId, ulong manifestId, string branch,
@@ -338,7 +340,7 @@ namespace SteamArchiver
         {
             cdnPool = new CDNClientPool(steam3, appId);
 
-            await steam3?.RequestAppInfo(appId);
+            await steam3.RequestAppInfo(appId);
 
             if (!await AccountHasAccess(appId, appId))
             {
@@ -431,7 +433,7 @@ namespace SteamArchiver
             }
         }
 
-        static async Task<DepotDownloadInfo> GetDepotInfo(uint depotId, uint appId, ulong manifestId, string branch)
+        static async Task<DepotDownloadInfo?> GetDepotInfo(uint depotId, uint appId, ulong manifestId, string branch)
         {
             if (steam3 != null && appId != INVALID_APP_ID)
             {
@@ -441,7 +443,6 @@ namespace SteamArchiver
             if (!await AccountHasAccess(appId, depotId))
             {
                 Console.WriteLine("Depot {0} is not available from this account.", depotId);
-
                 return null;
             }
 
@@ -473,22 +474,45 @@ namespace SteamArchiver
             }
             var depotFile = Path.Combine(keyDir, $"{depotId}.depotkey");
             byte[] depotKey;
-            if (!File.Exists(depotFile))
+            // Check if the depot key is already acquired
+            if (!acquiredDepotKeys.Contains(depotId))
             {
-                await steam3.RequestDepotKey(depotId, containingAppId);
-                if (!steam3.DepotKeys.TryGetValue(depotId, out depotKey))
+                if (!File.Exists(depotFile))
                 {
-                    Console.WriteLine("No valid depot key for {0}, unable to download.", depotId);
-                    return null;
+                    if (steam3 != null)
+                    {
+                        await steam3.RequestDepotKey(depotId, containingAppId);
+                        if (!steam3.DepotKeys.TryGetValue(depotId, out depotKey))
+                        {
+                            Console.WriteLine("No valid depot key for {0}, unable to download.", depotId);
+                            return null;
+                        }
+                        else
+                        {
+                            await File.WriteAllBytesAsync(depotFile, depotKey);
+                            // Add the depot ID to the cache
+                            acquiredDepotKeys.Add(depotId);
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("Steam3 session is not initialized.");
+                        return null;
+                    }
                 }
                 else
                 {
-                    await File.WriteAllBytesAsync(depotFile, depotKey);
+                    Console.WriteLine($"Existing depot key for {depotId} found");
+                    depotKey = await File.ReadAllBytesAsync(depotFile);
+                    if (!acquiredDepotKeys.Contains(depotId))
+                    {
+                        acquiredDepotKeys.Add(depotId);
+                    }
                 }
             }
             else
             {
-                Console.WriteLine($"Existing depot key for {depotId} found");
+                // If the depot key is already acquired, read it from the file
                 depotKey = await File.ReadAllBytesAsync(depotFile);
             }
 
@@ -559,11 +583,17 @@ namespace SteamArchiver
             foreach (var depot in depots)
             {
                 var depotChunkData = await ProcessDepotManifestAndFiles(cts, depot, downloadCounter);
+                await Task.Delay(1000); // Introduce a delay of 1 second
 
                 if (depotChunkData != null)
                 {
                     depotsToDownload.Add(depotChunkData);
                     allChunkNamesAllDepots.UnionWith(depotChunkData.allChunkNames);
+                }
+                else
+                {
+                    Console.WriteLine("Skipping manifest {0}", depot.ManifestId);
+                    return;
                 }
 
                 cts.Token.ThrowIfCancellationRequested();
@@ -580,7 +610,7 @@ namespace SteamArchiver
             //    downloadCounter.totalBytesCompressed, depots.Count);
         }
 
-        private static async Task<DepotChunksData> ProcessDepotManifestAndFiles(CancellationTokenSource cts, DepotDownloadInfo depot, GlobalDownloadCounter downloadCounter)
+        private static async Task<DepotChunksData?> ProcessDepotManifestAndFiles(CancellationTokenSource cts, DepotDownloadInfo depot, GlobalDownloadCounter downloadCounter)
         {
             var depotCounter = new DepotDownloadCounter();
 
@@ -596,6 +626,7 @@ namespace SteamArchiver
 
             var manifestDir = Path.Combine(depotPath, $"{depot.ManifestId.ToString()}.zip");
             bool ManifestExists = File.Exists(manifestDir);
+            bool downloadFailed = false;
             do
             {
                 if (!ManifestExists)
@@ -638,6 +669,7 @@ namespace SteamArchiver
                             {
                                 Console.WriteLine("No manifest request code was returned for {0} {1}", depot.DepotId, depot.ManifestId);
                                 cts.Cancel();
+                                downloadFailed = true;
                                 break;
                             }
                         }
@@ -709,8 +741,10 @@ namespace SteamArchiver
                     catch (Exception e)
                     {
                         cdnPool.ReturnBrokenConnection(connection);
-                        //Console.WriteLine("Encountered error downloading manifest for depot {0} {1}: {2}", depot.DepotId, depot.ManifestId, e.Message);
-                        throw new Exception($"Encountered error downloading manifest for depot {depot.DepotId} {depot.ManifestId}: {e.Message}");
+                        Console.WriteLine("Encountered error downloading manifest for depot {0} {1}: {2}", depot.DepotId, depot.ManifestId, e.Message);
+                        //throw new Exception($"Encountered error downloading manifest for depot {depot.DepotId} {depot.ManifestId}: {e.Message}");
+                        downloadFailed = true;
+                        break;
                     }
                 }
                 else
@@ -734,7 +768,13 @@ namespace SteamArchiver
                 //Console.WriteLine("\nUnable to download manifest {0} for depot {1}", depot.ManifestId, depot.DepotId);
                 cts.Cancel();
                 //return null;
-                throw new Exception($"Unable to download manifest {depot.ManifestId} for depot {depot.DepotId}");
+                //throw new Exception($"Unable to download manifest {depot.ManifestId} for depot {depot.DepotId}");
+                downloadFailed = true;
+            }
+
+            if (Config.DownloadManifestOnly || downloadFailed)
+            {
+                return null;
             }
 
             protoManifest = new ProtoManifest(depotManifest, depot.ManifestId);
@@ -747,11 +787,6 @@ namespace SteamArchiver
             protoManifest.Files.Sort((x, y) => string.Compare(x.FileName, y.FileName, StringComparison.Ordinal));
 
             //Console.WriteLine("Manifest {0} ({1})", depot.ManifestId, protoManifest.CreationTime);
-
-            if (Config.DownloadManifestOnly)
-            {
-                return null;
-            }
 
             var chunksAfterExclusions = protoManifest.Files.AsParallel().Where(f => TestIsFileIncluded(f.FileName)).SelectMany(f => f.Chunks).ToList();
             var allChunkNames = new HashSet<string>(chunksAfterExclusions.Count);
@@ -840,7 +875,7 @@ namespace SteamArchiver
                             }
                             catch (IOException)
                             {
-                                Console.WriteLine("Failed to download chunk {0} for depot {1} due to file lock.", chunk.ChunkID, depot.DepotId);
+                                Console.WriteLine("Failed to download chunk {0} for depot {1} due to file lock.", BitConverter.ToString(chunk.ChunkID).Replace("-", "").ToLower(), depot.DepotId);
                             }
                         }
                         else

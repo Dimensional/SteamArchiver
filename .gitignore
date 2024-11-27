@@ -119,3 +119,4 @@ cryptopp/
 # misc
 Thumbs.db
 /SteamArchiver/Properties/launchSettings.json
+/SteamArchiver/Properties/PublishProfiles/

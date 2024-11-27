@@ -77,7 +77,7 @@ namespace SteamArchiver
 
             ContentDownloader.Config.VerifyAll = HasParameter(args, "-verify-all") || HasParameter(args, "-verify_all") || HasParameter(args, "-validate");
             ContentDownloader.Config.MaxServers = GetParameter(args, "-max-servers", 20);
-            ContentDownloader.Config.MaxDownloads = GetParameter(args, "-max-downloads", 8);
+            ContentDownloader.Config.MaxDownloads = GetParameter(args, "-max-downloads", 4);
             ContentDownloader.Config.MaxServers = Math.Max(ContentDownloader.Config.MaxServers, ContentDownloader.Config.MaxDownloads);
             ContentDownloader.Config.LoginID = HasParameter(args, "-loginid") ? GetParameter<uint>(args, "-loginid") : null;
 
