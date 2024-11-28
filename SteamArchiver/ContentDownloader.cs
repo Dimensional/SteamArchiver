@@ -618,7 +618,7 @@ namespace SteamArchiver
             ProtoManifest protoManifest = null;
             var configDir = Path.Combine(depot.InstallDir, CONFIG_DIR);
 
-            Console.Write("Downloading depot manifest... ");
+            Console.WriteLine($"Downloading depot {depot.DepotId} manifest");
 
             DepotManifest depotManifest = null;
             ulong manifestRequestCode = 0;
